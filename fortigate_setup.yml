@@ -1,0 +1,523 @@
+---
+- name: Configure FortiGate Firewall
+  hosts: fortigates
+  gather_facts: no
+  collections:
+    - fortinet.fortios
+
+  vars_prompt:
+    - name: new_hostname
+      prompt: "Enter the new hostname(l3fw-xx-) for the FortiGate firewall (leave blank to skip)"
+      private: no
+
+    - name: enable_vdom
+      prompt: "Do you want to enable and create VDOMs? If yes, enter the names of the VDOMs separated by commas (leave blank to skip)"
+      private: no
+
+    - name: syslog_ip
+      prompt: "Enter the Syslog server IP address for logging(10.180.14.194) (leave blank to skip)"
+      private: no
+
+    - name: fortianalyzer_ip
+      prompt: "Enter the FortiAnalyzer IP address for logging(10.180.14.194) (leave blank to skip)"
+      private: no
+
+    - name: timezone
+      prompt: "Enter the timezone (e.g., 25 for GMT (London), 26 for UTC+1 (Luxembourg), etc.)"
+      private: no
+
+    - name: dns_primary
+      prompt: "Enter the primary DNS server IP address(208.67.220.220) (leave blank to skip)"
+      private: no
+
+    - name: dns_secondary
+      prompt: "Enter the secondary DNS server IP address(208.67.222.222) (leave blank to skip)"
+      private: no
+
+    - name: local_domain
+      prompt: "Enter the local domain name(fremantlemedia.net) (leave blank to skip)"
+      private: no
+
+    - name: "profile_name"
+      prompt: "Enter the name of the admin profile for read only (read-only_telnet) (Press Enter to skip)"
+      private: no
+
+    - name: admin_name
+      prompt: "Enter the administrator name(techfm) (leave blank to skip)"
+      private: no
+
+    - name: admin_password
+      prompt: "Enter the administrator password (leave blank to skip)"
+      private: yes
+
+    - name: trusted_hosts
+      prompt: "Enter the trusted hosts separated by commas (e.g., 146.220.130.0/24,xx) (leave blank to skip)"
+      private: no
+
+    - name: idle_timeout
+      prompt: "Enter the admin idle timeout in minutes (e.g., 15 for 15 minutes, leave blank to skip)"
+      private: no
+
+    - name: remote_auth_timeout
+      prompt: "Enter the remote authentication timeout in seconds (e.g., 60 for 60 seconds, leave blank to skip). Only if SSL VPN is deployed with MFA, increase to 60 seconds."
+      private: no
+
+    - name: disable_http_https_redirect
+      prompt: "Do you want to disable HTTP to HTTPS redirection? (yes/no, leave blank to skip)"
+      private: no
+
+    - name: snmp_name
+      prompt: "Enter SNMP Community Name (leave blank to skip)"
+      private: no
+
+    - name: snmp_ips
+      prompt: "Enter SNMP Host IPs or subnets (comma-separated, e.g., 146.220.76.0 255.255.255.224,146.220.130.0 255.255.255.0) (leave blank to skip)"
+      private: no
+
+    - name: snmp_contact
+      prompt: "Enter SNMP Contact Information (e.g., network_support@bce.lu_+35224806150) (leave blank to skip)"
+      private: no
+
+    - name: snmp_description
+      prompt: "Enter SNMP Description (e.g., Network monitoring) (leave blank to skip)"
+      private: no
+
+    - name: "radius_name"
+      prompt: "Enter the RADIUS server configuration name (suggest: FM_TelNet_NPS, leave blank to skip)"
+      private: no
+
+    - name: "primary_server_ip"
+      prompt: "Enter the primary RADIUS server IP(10.180.8.129) (leave blank to skip)"
+      private: no
+
+    - name: "primary_secret"
+      prompt: "Enter the primary RADIUS server secret (leave blank to skip)"
+      private: yes
+
+    - name: "secondary_server_ip"
+      prompt: "Enter the secondary RADIUS server IP(10.180.101.175) (leave blank to skip)"
+      private: no
+
+    - name: "secondary_secret"
+      prompt: "Enter the secondary RADIUS server secret (leave blank to skip)"
+      private: yes
+
+    - name: "auth_type"
+      prompt: "Enter the authentication type(RADIUS) (suggest: ms_chap_v2, leave blank to skip)"
+      private: no
+
+    - name: "source_ip"
+      prompt: "Enter the source IP address(RADIUS) (leave blank to skip)"
+      private: no
+
+    - name: "interface_name"
+      prompt: "Enter the interface name to configure backdoor (e.g., internal4, portA, dmz)"
+      private: no
+
+    - name: "ip_address"
+      prompt: "Enter the static IP address to assign to the interface(backdoor) (e.g., 10.0.0.1/24)"
+      private: no
+
+    - name: https_port
+      prompt: "Enter the new HTTPS management port (leave blank to skip)"
+      private: no
+  tasks:
+    - name: Change the firewall name
+      fortinet.fortios.fortios_system_global:
+        vdom: "root"
+        system_global:
+          hostname: "{{ new_hostname }}"
+      vars:
+        ansible_network_os: fortinet.fortios.fortios
+      when: new_hostname | length > 0
+      register: result_name_change
+
+    - name: Show result of name change
+      debug:
+        msg: "Firewall name change result: {{ result_name_change }}"
+      when: new_hostname | length > 0
+
+    - name: Configure the timezone
+      fortinet.fortios.fortios_system_global:
+        vdom: "root"
+        system_global:
+          timezone: "{{ timezone }}"
+      vars:
+        ansible_network_os: fortinet.fortios.fortios
+      when: timezone | length > 0
+      register: result_timezone_change
+
+    - name: Show result of timezone configuration
+      debug:
+        msg: "Timezone configuration result: {{ result_timezone_change }}"
+      when: timezone | length > 0
+
+    - name: Configure DNS settings if any DNS parameters are provided
+      fortinet.fortios.fortios_system_dns:
+        vdom: "root"
+        system_dns:
+          primary: "{{ dns_primary | default(omit) }}"
+          secondary: "{{ dns_secondary | default(omit) }}"
+          domain:
+            - domain: "{{ local_domain | default(omit) }}"
+      vars:
+        ansible_network_os: fortinet.fortios.fortios
+      when: dns_primary | length > 0 or dns_secondary | length > 0 or local_domain | length > 0
+      register: result_dns_config
+
+    - name: Show result of DNS configuration
+      debug:
+        msg: "DNS configuration result: {{ result_dns_config }}"
+      when: dns_primary | length > 0 or dns_secondary | length > 0 or local_domain | length > 0
+
+    - name: Enable Multi-VDOM and optionally create VDOMs
+      block:
+        - name: Enable Multi-VDOM
+          fortinet.fortios.fortios_system_global:
+            vdom: "root"
+            system_global:
+              vdom_mode: "multi-vdom"
+          vars:
+            ansible_network_os: fortinet.fortios.fortios
+          register: result_vdom_enable
+          when: enable_vdom | length > 0
+
+        - name: Pause to handle re-login after enabling Multi-VDOM
+          ansible.builtin.pause:
+            seconds: 30
+          when: result_vdom_enable.changed
+          delegate_to: localhost
+
+        - name: Create VDOMs if names are provided
+          fortinet.fortios.fortios_system_vdom:
+            vdom: "root"
+            system_vdom:
+              name: "{{ item }}"
+            state: present
+          loop: "{{ enable_vdom.split(',') }}"
+          vars:
+            ansible_network_os: fortinet.fortios.fortios
+          register: result_vdom_create
+          when: enable_vdom | length > 0
+
+        - name: Show result of VDOM creation
+          debug:
+            msg: "VDOM creation result: {{ result_vdom_create }}"
+          when: enable_vdom | length > 0
+
+    - name: Enable Syslog logging if IP is provided
+      fortinet.fortios.fortios_log_syslogd_setting:
+        vdom: "root"
+        log_syslogd_setting:
+          status: "enable"
+          server: "{{ syslog_ip }}"
+          mode: "udp"
+          facility: "local7"
+      vars:
+        ansible_network_os: fortinet.fortios.fortios
+      when: syslog_ip | length > 0
+      register: result_syslog
+
+    - name: Show result of Syslog configuration
+      debug:
+        msg: "Syslog configuration result: {{ result_syslog }}"
+      when: syslog_ip | length > 0
+
+    - name: Enable FortiAnalyzer logging if IP is provided
+      fortinet.fortios.fortios_log_fortianalyzer_setting:
+        vdom: "root"
+        log_fortianalyzer_setting:
+          status: "enable"
+          server: "{{ fortianalyzer_ip }}"
+          upload_option: "realtime"
+          conn_timeout: 10
+          reliable: "enable"
+          monitor_failure_retry_period: 10
+          monitor_keepalive_period: 5
+      vars:
+        ansible_network_os: fortinet.fortios.fortios
+      when: fortianalyzer_ip | length > 0
+      register: result_fortianalyzer
+
+    - name: Show result of FortiAnalyzer configuration
+      debug:
+        msg: "FortiAnalyzer configuration result: {{ result_fortianalyzer }}"
+      when: fortianalyzer_ip | length > 0
+
+    - name: Configure Admin Idle Timeout
+      fortinet.fortios.fortios_system_global:
+        vdom: "root"
+        system_global:
+          admintimeout: "{{ idle_timeout | default(omit) }}"
+      vars:
+        ansible_network_os: fortinet.fortios.fortios
+      when: idle_timeout | length > 0
+
+    - name: Configure Remote Authentication Timeout
+      fortinet.fortios.fortios_system_global:
+        vdom: "root"
+        system_global:
+          remoteauthtimeout: "{{ remote_auth_timeout | default(omit) }}"
+      vars:
+        ansible_network_os: fortinet.fortios.fortios
+      when: remote_auth_timeout | length > 0
+
+    - name: Set trusted hosts as a list
+      set_fact:
+        trusted_hosts_list: "{{ trusted_hosts.split(',') }}"
+      when: trusted_hosts | length > 0
+
+    - name: Create a new administrator user
+      fortinet.fortios.fortios_system_admin:
+        vdom: "root"
+        state: "present"
+        system_admin:
+          name: "{{ admin_name }}"
+          password: "{{ admin_password }}"
+          accprofile: "super_admin"
+          trusthost1: "{{ trusted_hosts_list[0] | default(omit) }}"
+          trusthost2: "{{ trusted_hosts_list[1] | default(omit) }}"
+          trusthost3: "{{ trusted_hosts_list[2] | default(omit) }}"
+          trusthost4: "{{ trusted_hosts_list[3] | default(omit) }}"
+          trusthost5: "{{ trusted_hosts_list[4] | default(omit) }}"
+          trusthost6: "{{ trusted_hosts_list[5] | default(omit) }}"
+          trusthost7: "{{ trusted_hosts_list[6] | default(omit) }}"
+          trusthost8: "{{ trusted_hosts_list[7] | default(omit) }}"
+          trusthost9: "{{ trusted_hosts_list[8] | default(omit) }}"
+          trusthost10: "{{ trusted_hosts_list[9] | default(omit) }}"
+      vars:
+        ansible_network_os: fortinet.fortios.fortios
+      when: admin_name | length > 0
+
+    - name: Create or update the admin profile (if profile name is provided)
+      fortios_system_accprofile:
+        vdom: root
+        state: present
+        system_accprofile:
+          name: "{{ profile_name }}"
+          scope: global
+          secfabgrp: read
+          ftviewgrp: read
+          authgrp: read
+          sysgrp: read
+          netgrp: custom
+          loggrp: read
+          fwgrp: read
+          vpngrp: read
+          utmgrp: read
+          wanoptgrp: read
+          wifi: read
+          netgrp_permission:
+            cfg: read
+            packet_capture: read
+            route_cfg: read-write
+      when: profile_name != ""
+
+    - name: Disable HTTP to HTTPS redirection
+      fortinet.fortios.fortios_system_global:
+        vdom: "root"
+        system_global:
+          admin_https_redirect: "disable"
+      vars:
+        ansible_network_os: fortinet.fortios.fortios
+      when: disable_http_https_redirect.lower() == "yes"
+      register: result_http_redirect_disable
+
+    - name: Show result of HTTP to HTTPS redirection configuration
+      debug:
+        msg: "HTTP to HTTPS redirection result: {{ result_http_redirect_disable }}"
+      when: disable_http_https_redirect.lower() == "yes"
+      
+    - name: Set SNMP IPs as a list
+      set_fact:
+        snmp_ips_list: "{{ snmp_ips.split(',') | map('trim') | list }}"
+      when: snmp_ips | length > 0
+
+    - name: Enable SNMP
+      fortinet.fortios.fortios_system_snmp_sysinfo:
+        vdom: "root"
+        system_snmp_sysinfo:
+          status: "enable"
+      register: snmp_enable_result
+      when: snmp_name | length > 0
+
+    - name: Create SNMP hosts configuration
+      set_fact:
+        snmp_hosts_config: |
+          {% set hosts = [] %}
+          {% for item in snmp_ips_list %}
+          {% set _ = hosts.append({
+            'id': loop.index + 1,
+            'ip': item.split('/')[0],
+            'source_ip': item.split('/')[1] | default(omit),
+            'host_type': 'query'
+          }) %}
+          {% endfor %}
+          {{ hosts }}
+      when: snmp_ips | length > 0
+
+    - name: Configure SNMP community
+      fortinet.fortios.fortios_system_snmp_community:
+        vdom: "root"
+        state: "present"
+        system_snmp_community:
+          id: "1"  # You may want to use a dynamic ID if you have multiple communities
+          name: "{{ snmp_name }}"
+          events:
+            - cpu-high
+            - mem-low
+            - log-full
+            - intf-ip
+            - vpn-tun-up
+            - vpn-tun-down
+            - ha-switch
+            - ha-hb-failure
+            - ips-signature
+            - ips-anomaly
+            - av-virus
+            - av-oversize
+            - av-pattern
+            - av-fragmented
+            - fm-if-change
+            - fm-conf-change
+            - bgp-established
+            - bgp-backward-transition
+            - ha-member-up
+            - ha-member-down
+            - ent-conf-change
+            - av-conserve
+            - av-bypass
+            - av-oversize-passed
+            - av-oversize-blocked
+            - ips-pkg-update
+            - ips-fail-open
+            - faz-disconnect
+            - faz
+            - wc-ap-up
+            - wc-ap-down
+            - fswctl-session-up
+            - fswctl-session-down
+            - load-balance-real-server-down
+            - device-new
+            - per-cpu-high
+            - dhcp
+            - pool-usage
+            - ospf-nbr-state-change
+            - ospf-virtnbr-state-change
+            - temperature-high
+            - voltage-alert
+            - power-supply
+            - fan-failure
+            - power-supply-failure
+          hosts: "{{ snmp_hosts_config }}"
+          query_v1_port: "161"
+          query_v1_status: "disable"
+          query_v2c_port: "161"
+          query_v2c_status: "enable"
+          status: "enable"
+          trap_v1_lport: "162"
+          trap_v1_rport: "162"
+          trap_v1_status: "disable"
+          trap_v2c_lport: "162"
+          trap_v2c_rport: "162"
+          trap_v2c_status: "enable"
+          vdoms:
+            - name: "root"
+      register: snmp_community_result
+      when: snmp_name | length > 0
+
+    - name: Configure SNMP contact info and description
+      fortinet.fortios.fortios_system_snmp_sysinfo:
+        vdom: "root"
+        system_snmp_sysinfo:
+          contact_info: "{{ snmp_contact }}"
+          description: "{{ snmp_description }}"
+      register: snmp_contact_result
+      when: snmp_name | length > 0
+
+    - name: Ensure SNMP is enabled and contact info is set
+      debug:
+        msg: "SNMP enabled status: {{ snmp_enable_result }} and Contact info status: {{ snmp_contact_result }}"
+      when: snmp_name | length > 0
+
+    - name: Configure RADIUS server settings with interactive inputs
+      fortinet.fortios.fortios_user_radius:
+        vdom: "root"
+        state: "present"
+        user_radius:
+          name: "{{ radius_name | default(omit, true) }}"
+          server: "{{ primary_server_ip | default(omit, true) }}"
+          secret: "{{ primary_secret | default(omit, true) }}"
+          radius_port: 1812  # Default RADIUS port
+          secondary_server: "{{ secondary_server_ip | default(omit, true) }}"
+          secondary_secret: "{{ secondary_secret | default(omit, true) }}"
+          auth_type: "{{ auth_type | lower | default(omit, true) }}"
+          source_ip: "{{ source_ip | default(omit, true) }}"
+      when:
+        - radius_name != "" or primary_server_ip != "" or primary_secret != ""
+      register: result
+
+    - name: Show result if RADIUS configuration was applied
+      debug:
+        msg: "{{ result }}"
+      when: result is defined and result.changed
+
+    - name: Debug information
+      debug:
+        msg: "Configuring interface {{ interface_name }} with IP {{ ip_address }}"
+      when: interface_name | length > 0
+
+    - name: Ensure interface is in static mode, configure IP, and set description
+      fortinet.fortios.fortios_system_interface:
+        vdom: "root"
+        state: "present"
+        system_interface:
+          name: "{{ interface_name }}"
+          mode: "static"  # Switch to static mode
+          ip: "{{ ip_address }}"
+          allowaccess: "ping,https"  # Adjust based on your requirements
+          status: "up"  # Ensure the port is enabled
+          type: "physical"  # Ensure it's a physical interface
+          role: "{{ 'wan' if 'wan' in interface_name else 'dmz' if 'dmz' in interface_name else 'lan' }}"
+          alias: "--N Backdoor"  # Set the interface description
+      register: result
+      when: interface_name | length > 0
+
+    - name: Fetch detailed configuration after changes
+      fortinet.fortios.fortios_system_interface:
+        vdom: "root"
+        state: "present"
+        system_interface:
+          name: "{{ interface_name }}"
+      register: post_change_config
+      when: interface_name | length > 0
+
+    - name: Display configuration after changes
+      debug:
+        msg: "Configuration after changes: {{ post_change_config }}"
+      when: interface_name | length > 0
+
+    - name: Display result of configuration change
+      debug:
+        msg: "Result of configuration change: {{ result }}"
+      when: interface_name | length > 0
+
+    - name: Change HTTPS management port if provided
+      fortinet.fortios.fortios_system_global:
+        vdom: "root"
+        system_global:
+          admin_sport: "{{ https_port | int }}"
+      vars:
+        ansible_network_os: fortinet.fortios.fortios
+      when: https_port | length > 0
+      register: result_https_port_change
+
+    - name: Show result of HTTPS port change
+      debug:
+        msg: "HTTPS port change result: {{ result_https_port_change }}"
+      when: https_port | length > 0
+
+    - name: Update inventory with new HTTPS port
+      command: "python3 update_inventory.py {{ https_port }}"
+      when: https_port | length > 0
+      delegate_to: localhost
